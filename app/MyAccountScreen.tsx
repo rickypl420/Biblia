@@ -104,12 +104,10 @@ export default function MyAccountScreen() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const handleSignOut = () => {
-    Alert.alert('Wylogowanie', 'Czy na pewno chcesz się wylogować?', [
-      { text: 'Anuluj', style: 'cancel' },
-      { text: 'Wyloguj', style: 'destructive', onPress: signOut },
-    ]);
-  };
+const handleSignOut = () => {
+  const confirmed = window.confirm('Czy na pewno chcesz się wylogować?');
+  if (confirmed) signOut();
+};
 
   if (loading) {
     return (

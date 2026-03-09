@@ -120,30 +120,21 @@ export default function BorrowingsScreen() {
 
   useEffect(() => { loadBorrowings(); }, [loadBorrowings]);
 
-  const handleReturn = (item: any) => {
-    Alert.alert(
-      'Zwróć książkę',
-      `Czy chcesz zwrócić "${item.egzemplarze?.ksiazki?.tytul}"?`,
-      [
-        { text: 'Anuluj', style: 'cancel' },
-        {
-          text: 'Zwróć',
-          onPress: async () => {
-            const now = new Date().toISOString();
-            await supabase.from('wypozyczenia').update({ data_zwrotu: now }).eq('id', item.id);
-            await supabase.from('egzemplarze').update({ status: 'dostepna' }).eq('id', item.egzemplarze.id);
-            await supabase.from('historia_egzemplarzy').insert({
-              id_egzemplarza: item.egzemplarze.id,
-              opis_zdarzenia: `Zwrócona przez użytkownika ${userProfile?.id}`,
-              data_zdarzenia: now,
-            });
-            loadBorrowings();
-            Alert.alert('✅ Zwrócono', 'Książka została pomyślnie zwrócona!');
-          },
-        },
-      ]
-    );
-  };
+const handleReturn = async (item: any) => {
+  const confirmed = window.confirm(`Czy chcesz zwrócić "${item.egzemplarze?.ksiazki?.tytul}"?`);
+  if (!confirmed) return;
+
+  const now = new Date().toISOString();
+  await supabase.from('wypozyczenia').update({ data_zwrotu: now }).eq('id', item.id);
+  await supabase.from('egzemplarze').update({ status: 'dostepna' }).eq('id', item.egzemplarze.id);
+  await supabase.from('historia_egzemplarzy').insert({
+    id_egzemplarza: item.egzemplarze.id,
+    opis_zdarzenia: `Zwrócona przez użytkownika ${userProfile?.id}`,
+    data_zdarzenia: now,
+  });
+  loadBorrowings();
+  window.alert('✅ Zwrócono pomyślnie!');
+};
 
   const handlePress = (item: any) => {
     if (item.egzemplarze?.ksiazki?.id) {
