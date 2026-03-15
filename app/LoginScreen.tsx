@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ScrollView, ActivityIndicator, Alert,
+  ScrollView, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const COLORS = {
   primary: '#1A1A2E', accent: '#E94560', secondary: '#16213E',
@@ -18,18 +19,37 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const { signIn } = useAuth();
 
+  useEffect(() => {
+    const loadSaved = async () => {
+      try {
+        const remembered = await AsyncStorage.getItem('remember_me');
+        const savedEmail = await AsyncStorage.getItem('remembered_email');
+        if (remembered === 'true' && savedEmail) {
+          setEmail(savedEmail);
+          setRememberMe(true);
+        }
+      } catch {}
+    };
+    loadSaved();
+  }, []);
+
   const handleLogin = async () => {
+    setErrorMsg('');
     if (!email || !password) {
-      Alert.alert('Błąd', 'Wypełnij wszystkie pola');
+      setErrorMsg('Wypelnij wszystkie pola');
       return;
     }
     setLoading(true);
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(email, password, rememberMe);
     setLoading(false);
-    if (error) Alert.alert('Błąd logowania', error.message);
+    if (error) {
+      setErrorMsg('Nieprawidlowy email lub haslo');
+    }
   };
 
   return (
@@ -40,10 +60,17 @@ export default function LoginScreen() {
             <Ionicons name="library" size={48} color={COLORS.accent} />
           </View>
           <Text style={styles.title}>Biblioteka</Text>
-          <Text style={styles.subtitle}>Zaloguj się do swojego konta</Text>
+          <Text style={styles.subtitle}>Zaloguj sie do swojego konta</Text>
         </View>
 
         <View style={styles.form}>
+          {errorMsg ? (
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle-outline" size={18} color={COLORS.error} />
+              <Text style={styles.errorText}>{errorMsg}</Text>
+            </View>
+          ) : null}
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Email</Text>
             <View style={styles.inputWrapper}>
@@ -57,12 +84,14 @@ export default function LoginScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                returnKeyType="next"
+                onSubmitEditing={() => {}}
               />
             </View>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Hasło</Text>
+            <Text style={styles.label}>Haslo</Text>
             <View style={styles.inputWrapper}>
               <Ionicons name="lock-closed-outline" size={20} color={COLORS.muted} style={styles.inputIcon} />
               <TextInput
@@ -72,18 +101,33 @@ export default function LoginScreen() {
                 placeholder="••••••••"
                 placeholderTextColor={COLORS.muted}
                 secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="go"
+                onSubmitEditing={handleLogin}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color={COLORS.muted} />
+                <Ionicons
+                  name={showPassword ? 'eye-off' : 'eye'}
+                  size={20}
+                  color={showPassword ? COLORS.accent : COLORS.muted}
+                />
               </TouchableOpacity>
             </View>
           </View>
+
+          <TouchableOpacity style={styles.rememberRow} onPress={() => setRememberMe(!rememberMe)}>
+            <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
+              {rememberMe && <Ionicons name="checkmark" size={14} color="#fff" />}
+            </View>
+            <Text style={styles.rememberText}>Zapamietaj mnie</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading}>
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.loginButtonText}>Zaloguj się</Text>
+              <Text style={styles.loginButtonText}>Zaloguj sie</Text>
             )}
           </TouchableOpacity>
 
@@ -94,7 +138,7 @@ export default function LoginScreen() {
           </View>
 
           <TouchableOpacity style={styles.registerButton} onPress={() => router.push('/RegisterScreen')}>
-            <Text style={styles.registerButtonText}>Utwórz nowe konto</Text>
+            <Text style={styles.registerButtonText}>Utworz nowe konto</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -117,6 +161,12 @@ const styles = StyleSheet.create({
   title: { fontSize: 32, fontWeight: '800', color: COLORS.text, letterSpacing: 1 },
   subtitle: { fontSize: 14, color: COLORS.muted, marginTop: 6 },
   form: { gap: 16 },
+  errorBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#2a0a0a', borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: COLORS.error,
+  },
+  errorText: { color: COLORS.error, fontSize: 14, flex: 1 },
   inputGroup: { gap: 6 },
   label: { fontSize: 13, fontWeight: '600', color: COLORS.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
   inputWrapper: {
@@ -126,11 +176,18 @@ const styles = StyleSheet.create({
   },
   inputIcon: { marginRight: 10 },
   input: { flex: 1, height: 50, color: COLORS.text, fontSize: 16 },
-  eyeIcon: { padding: 4 },
+  eyeIcon: { padding: 6 },
+  rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: -4 },
+  checkbox: {
+    width: 20, height: 20, borderRadius: 6,
+    borderWidth: 2, borderColor: COLORS.surface,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  checkboxActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  rememberText: { fontSize: 14, color: COLORS.muted },
   loginButton: {
     backgroundColor: COLORS.accent, borderRadius: 12,
     height: 52, justifyContent: 'center', alignItems: 'center',
-    marginTop: 8,
     shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4, shadowRadius: 10, elevation: 8,
   },

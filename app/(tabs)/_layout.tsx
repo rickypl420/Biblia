@@ -1,7 +1,8 @@
-import { Tabs, router, usePathname, Slot } from 'expo-router';
+import { Tabs, router, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useWindowDimensions, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
+import { useAppAlert } from '../../components/AppAlert';
 
 const COLORS = {
   accent: '#E94560', secondary: '#16213E', surface: '#0F3460',
@@ -9,23 +10,32 @@ const COLORS = {
 };
 
 const NAV_ITEMS = [
-  { name: 'index', path: '/(tabs)/', label: 'Strona główna', icon: 'home', iconOutline: 'home-outline' },
+  { name: 'index', path: '/(tabs)/', label: 'Strona glowna', icon: 'home', iconOutline: 'home-outline' },
   { name: 'SearchScreen', path: '/(tabs)/SearchScreen', label: 'Szukaj', icon: 'search', iconOutline: 'search-outline' },
-  { name: 'BorrowingsScreen', path: '/(tabs)/BorrowingsScreen', label: 'Wypożyczenia', icon: 'book', iconOutline: 'book-outline' },
+  { name: 'BorrowingsScreen', path: '/(tabs)/BorrowingsScreen', label: 'Wypozyczenia', icon: 'book', iconOutline: 'book-outline' },
   { name: 'MyAccountScreen', path: '/(tabs)/MyAccountScreen', label: 'Konto', icon: 'person', iconOutline: 'person-outline' },
 ];
 
 function Sidebar() {
   const { userProfile, signOut } = useAuth();
   const pathname = usePathname();
+  const { showAlert, alertComponent } = useAppAlert();
 
   const handleSignOut = () => {
-    const confirmed = window.confirm('Czy na pewno chcesz się wylogować?');
-    if (confirmed) signOut();
+    showAlert(
+      'Wylogowanie',
+      'Czy na pewno chcesz sie wylogowac?',
+      [
+        { text: 'Anuluj', onPress: () => {}, style: 'cancel' },
+        { text: 'Wyloguj', onPress: () => signOut(), style: 'destructive' },
+      ],
+      'warning'
+    );
   };
 
   return (
     <View style={styles.sidebar}>
+      {alertComponent}
       <View style={styles.sidebarLogo}>
         <View style={styles.logoIcon}>
           <Ionicons name="library" size={28} color={COLORS.accent} />
@@ -76,7 +86,7 @@ function Sidebar() {
 
       <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
         <Ionicons name="log-out-outline" size={20} color={COLORS.muted} />
-        <Text style={styles.signOutText}>Wyloguj się</Text>
+        <Text style={styles.signOutText}>Wyloguj sie</Text>
       </TouchableOpacity>
     </View>
   );
@@ -86,67 +96,48 @@ export default function TabLayout() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
-  if (isDesktop) {
-    return (
-      <View style={styles.desktopContainer}>
-        <Sidebar />
-        <View style={styles.desktopContent}>
-          <Slot />
-        </View>
-      </View>
-    );
-  }
-
   return (
-    <Tabs
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          const item = NAV_ITEMS.find(i => i.name === route.name);
-          return <Ionicons name={(focused ? item?.icon : item?.iconOutline) as any} size={size} color={color} />;
-        },
-        tabBarActiveTintColor: COLORS.accent,
-        tabBarInactiveTintColor: COLORS.muted,
-        tabBarStyle: {
-          backgroundColor: COLORS.secondary,
-          borderTopColor: COLORS.surface,
-          borderTopWidth: 1,
-          paddingBottom: 5,
-          height: 60,
-        },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-        headerShown: false,
-      })}
-    >
-      <Tabs.Screen name="index" options={{ tabBarLabel: 'Strona główna' }} />
-      <Tabs.Screen name="SearchScreen" options={{ tabBarLabel: 'Szukaj' }} />
-      <Tabs.Screen name="BorrowingsScreen" options={{ tabBarLabel: 'Wypożyczenia' }} />
-      <Tabs.Screen name="MyAccountScreen" options={{ tabBarLabel: 'Konto' }} />
-    </Tabs>
+    <View style={styles.rootContainer}>
+      {isDesktop && <Sidebar />}
+      <View style={styles.contentWrapper}>
+        <Tabs
+          screenOptions={({ route }) => ({
+            tabBarIcon: ({ focused, color, size }) => {
+              const item = NAV_ITEMS.find(i => i.name === route.name);
+              return <Ionicons name={(focused ? item?.icon : item?.iconOutline) as any} size={size} color={color} />;
+            },
+            tabBarActiveTintColor: COLORS.accent,
+            tabBarInactiveTintColor: COLORS.muted,
+            tabBarStyle: isDesktop ? { display: 'none' } : {
+              backgroundColor: COLORS.secondary,
+              borderTopColor: COLORS.surface,
+              borderTopWidth: 1,
+              paddingBottom: 5,
+              height: 60,
+            },
+            tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+            headerShown: false,
+          })}
+        >
+          <Tabs.Screen name="index" options={{ tabBarLabel: 'Strona glowna' }} />
+          <Tabs.Screen name="SearchScreen" options={{ tabBarLabel: 'Szukaj' }} />
+          <Tabs.Screen name="BorrowingsScreen" options={{ tabBarLabel: 'Wypozyczenia' }} />
+          <Tabs.Screen name="MyAccountScreen" options={{ tabBarLabel: 'Konto' }} />
+        </Tabs>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  desktopContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: COLORS.bg,
-  },
-  desktopContent: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
+  rootContainer: { flex: 1, flexDirection: 'row', backgroundColor: COLORS.bg },
+  contentWrapper: { flex: 1, backgroundColor: COLORS.bg },
   sidebar: {
-    width: 240,
-    backgroundColor: COLORS.secondary,
-    borderRightWidth: 1,
-    borderRightColor: COLORS.surface,
-    paddingVertical: 24,
-    paddingHorizontal: 16,
+    width: 240, backgroundColor: COLORS.secondary,
+    borderRightWidth: 1, borderRightColor: COLORS.surface,
+    paddingVertical: 24, paddingHorizontal: 16,
   },
-  sidebarLogo: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    marginBottom: 24, paddingHorizontal: 8,
-  },
+  sidebarLogo: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24, paddingHorizontal: 8 },
   logoIcon: {
     width: 44, height: 44, borderRadius: 12,
     backgroundColor: '#1a0a10', justifyContent: 'center', alignItems: 'center',
@@ -167,10 +158,7 @@ const styles = StyleSheet.create({
   userRole: { color: COLORS.muted, fontSize: 11, textTransform: 'uppercase', marginTop: 2 },
   sidebarDivider: { height: 1, backgroundColor: COLORS.surface, marginBottom: 16 },
   sidebarNav: { gap: 4 },
-  sidebarItem: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10,
-  },
+  sidebarItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 },
   sidebarItemActive: { backgroundColor: '#1a0a10' },
   sidebarItemText: { fontSize: 14, color: COLORS.muted, fontWeight: '600', flex: 1 },
   sidebarItemTextActive: { color: COLORS.accent },

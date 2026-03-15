@@ -1,13 +1,17 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const REMEMBER_KEY = 'remember_me';
+const REMEMBERED_EMAIL_KEY = 'remembered_email';
 
 type AuthContextType = {
   session: Session | null;
   user: User | null;
   userProfile: any | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signIn: (email: string, password: string, remember: boolean) => Promise<{ error: any }>;
   signUp: (email: string, password: string, imieNazwisko: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 };
@@ -25,11 +29,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const init = async () => {
       try {
+        // Check if user had "remember me" checked
+        const remembered = await AsyncStorage.getItem(REMEMBER_KEY);
+
         const { data: { session } } = await supabase.auth.getSession();
+
         if (!mounted) return;
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) await fetchProfile(session.user.email!);
+
+        if (session && remembered !== 'true') {
+          // Session exists but remember me was not checked — sign out
+          await supabase.auth.signOut();
+          setSession(null);
+          setUser(null);
+        } else if (session) {
+          setSession(session);
+          setUser(session.user);
+          if (session.user) await fetchProfile(session.user.email!);
+        }
       } catch (e) {
         console.log('Auth init error:', e);
       } finally {
@@ -62,8 +78,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUserProfile(data);
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, remember: boolean) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!error) {
+      if (remember) {
+        await AsyncStorage.setItem(REMEMBER_KEY, 'true');
+        await AsyncStorage.setItem(REMEMBERED_EMAIL_KEY, email);
+      } else {
+        await AsyncStorage.removeItem(REMEMBER_KEY);
+        await AsyncStorage.removeItem(REMEMBERED_EMAIL_KEY);
+      }
+    }
     return { error };
   };
 
@@ -79,8 +104,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error };
   };
 
-const signOut = async () => {
+  const signOut = async () => {
     await supabase.auth.signOut();
+    // Clear all remembered data on explicit logout
+    await AsyncStorage.removeItem(REMEMBER_KEY);
+    await AsyncStorage.removeItem(REMEMBERED_EMAIL_KEY);
     setSession(null);
     setUser(null);
     setUserProfile(null);

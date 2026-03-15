@@ -14,6 +14,12 @@ const COLORS = {
   success: '#4CAF50', warning: '#FF9800', info: '#2196F3',
 };
 
+// Cache globalny - nie resetuje się przy zmianie zakładek na webie
+let _stats = { totalBooks: 0, available: 0, borrowed: 0, myBorrowings: 0 };
+let _books: any[] = [];
+let _loaded = false;
+let _loadedForUser: number | null = null;
+
 function StatCard({ icon, label, value, color }: any) {
   return (
     <View style={[styles.statCard, { borderLeftColor: color }]}>
@@ -33,12 +39,12 @@ function BookCard({ book, onPress }: any) {
       <View style={styles.bookInfo}>
         <Text style={styles.bookTitle} numberOfLines={2}>{book.tytul}</Text>
         <Text style={styles.bookAuthor} numberOfLines={1}>
-          {book.autorzy?.map((a: any) => a.imie_nazwisko).join(', ') || 'Nieznany autor'}
+          {book.autorzy.length > 0 ? book.autorzy.join(', ') : 'Nieznany autor'}
         </Text>
         <View style={styles.bookMeta}>
           <View style={[styles.badge, { backgroundColor: book.dostepne > 0 ? '#1a3a1a' : '#3a1a1a' }]}>
             <Text style={[styles.badgeText, { color: book.dostepne > 0 ? COLORS.success : COLORS.accent }]}>
-              {book.dostepne > 0 ? `${book.dostepne} dostępna` : 'Wypożyczona'}
+              {book.dostepne > 0 ? `${book.dostepne} dostepnych` : 'Wypozyczona'}
             </Text>
           </View>
         </View>
@@ -50,45 +56,58 @@ function BookCard({ book, onPress }: any) {
 
 export default function HomeScreen() {
   const { userProfile } = useAuth();
-  const [stats, setStats] = useState({ totalBooks: 0, available: 0, borrowed: 0, myBorrowings: 0 });
-  const [recentBooks, setRecentBooks] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState(_stats);
+  const [recentBooks, setRecentBooks] = useState<any[]>(_books);
+  const [loading, setLoading] = useState(!_loaded);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = async () => {
+  const loadData = async (force = false) => {
+    // Nie ładuj ponownie jeśli już załadowane dla tego samego użytkownika
+    if (_loaded && !force && _loadedForUser === userProfile?.id) {
+      setStats(_stats);
+      setRecentBooks(_books);
+      setLoading(false);
+      return;
+    }
+
     try {
       const [booksResult, egzResult, myBorrowResult] = await Promise.all([
-        supabase.from('ksiazki').select('id').limit(1000),
+        supabase.from('ksiazki').select('id', { count: 'exact', head: true }),
         supabase.from('egzemplarze').select('status'),
         userProfile
           ? supabase.from('wypozyczenia').select('id').eq('id_uzytkownika', userProfile.id).is('data_zwrotu', null)
           : Promise.resolve({ data: [], error: null }),
       ]);
 
-      const total = booksResult.data?.length || 0;
-      const available = egzResult.data?.filter((e: any) => e.status === 'dostepna').length || 0;
-      const borrowed = egzResult.data?.filter((e: any) => e.status === 'wypozyczona').length || 0;
+      const total = booksResult.count || 0;
+      const available = egzResult.data?.filter((e: any) => e.status === 'dostepny').length || 0;
+      const borrowed = egzResult.data?.filter((e: any) => e.status === 'wypozyczony').length || 0;
       const myBorrowings = (myBorrowResult as any).data?.length || 0;
 
-      setStats({ totalBooks: total, available, borrowed, myBorrowings });
+      const newStats = { totalBooks: total, available, borrowed, myBorrowings };
+      _stats = newStats;
+      setStats(newStats);
 
       const { data: books } = await supabase
         .from('ksiazki')
-        .select(`
-          id, tytul, isbn,
-          ksiazki_autorzy(id_autora, autorzy(imie_nazwisko)),
-          egzemplarze(status)
-        `)
+        .select(`id, tytul, ksiazki_autorzy(autorzy(imie_nazwisko)), egzemplarze(status)`)
         .limit(10);
 
       if (books) {
         const enriched = books.map((b: any) => ({
-          ...b,
-          autorzy: b.ksiazki_autorzy?.map((ka: any) => ka.autorzy) || [],
-          dostepne: b.egzemplarze?.filter((e: any) => e.status === 'dostepna').length || 0,
+          id: b.id,
+          tytul: b.tytul,
+          autorzy: [...new Set(
+            b.ksiazki_autorzy?.map((ka: any) => ka.autorzy?.imie_nazwisko).filter(Boolean) ?? []
+          )],
+          dostepne: b.egzemplarze?.filter((e: any) => e.status === 'dostepny').length || 0,
         }));
+        _books = enriched;
         setRecentBooks(enriched);
       }
+
+      _loaded = true;
+      _loadedForUser = userProfile?.id ?? null;
     } catch (e) {
       console.error(e);
     } finally {
@@ -97,12 +116,19 @@ export default function HomeScreen() {
     }
   };
 
-  useEffect(() => { loadData(); }, [userProfile]);
+  useEffect(() => {
+    if (userProfile !== undefined) {
+      loadData();
+    }
+  }, [userProfile?.id]); // Tylko gdy zmieni się użytkownik
 
-  const onRefresh = () => { setRefreshing(true); loadData(); };
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData(true); // force = true przy pull-to-refresh
+  };
 
   const handleBookPress = (book: any) => {
-    router.push({ pathname: '/BookDetail', params: { bookId: book.id } });
+    router.push({ pathname: '/BookDetail', params: { id: book.id } } as any);
   };
 
   if (loading) {
@@ -114,7 +140,7 @@ export default function HomeScreen() {
   }
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Dzień dobry' : hour < 18 ? 'Dzień dobry' : 'Dobry wieczór';
+  const greeting = hour < 12 ? 'Dzien dobry' : hour < 18 ? 'Dzien dobry' : 'Dobry wieczor';
   const firstName = userProfile?.imie_nazwisko?.split(' ')[0] || 'Czytelniku';
 
   return (
@@ -122,7 +148,6 @@ export default function HomeScreen() {
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} />}
     >
-      {/* Header */}
       <View style={styles.headerGradient}>
         <View style={styles.headerContent}>
           <View>
@@ -131,31 +156,29 @@ export default function HomeScreen() {
           </View>
           <View style={styles.roleBadge}>
             <Ionicons name="shield-checkmark" size={14} color={COLORS.accent} />
-            <Text style={styles.roleText}>{userProfile?.rola || 'czytelnik'}</Text>
+            <Text style={styles.roleText}>{userProfile?.rola?.toUpperCase() || 'CZYTELNIK'}</Text>
           </View>
         </View>
       </View>
 
       <View style={styles.content}>
-        {/* Stats */}
         <Text style={styles.sectionTitle}>Statystyki biblioteki</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statsScroll}>
-          <StatCard icon="library" label="Wszystkie książki" value={stats.totalBooks} color={COLORS.info} />
-          <StatCard icon="checkmark-circle" label="Dostępne" value={stats.available} color={COLORS.success} />
-          <StatCard icon="time" label="Wypożyczone" value={stats.borrowed} color={COLORS.warning} />
-          <StatCard icon="person" label="Moje wypożyczenia" value={stats.myBorrowings} color={COLORS.accent} />
+          <StatCard icon="library" label="Wszystkie ksiazki" value={stats.totalBooks} color={COLORS.info} />
+          <StatCard icon="checkmark-circle" label="Dostepne" value={stats.available} color={COLORS.success} />
+          <StatCard icon="time" label="Wypozyczone" value={stats.borrowed} color={COLORS.warning} />
+          <StatCard icon="person" label="Moje wypozyczenia" value={stats.myBorrowings} color={COLORS.accent} />
         </ScrollView>
 
-        {/* Recent books */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Katalog książek</Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/SearchScreen')}>
+          <Text style={styles.sectionTitle}>Katalog ksiazek</Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/SearchScreen' as any)}>
             <Text style={styles.seeAllText}>Zobacz wszystkie</Text>
           </TouchableOpacity>
         </View>
 
         {recentBooks.map((book) => (
-          <BookCard key={book.id} book={book} onPress={handleBookPress} />
+          <BookCard key={`home-book-${book.id}`} book={book} onPress={handleBookPress} />
         ))}
       </View>
     </ScrollView>
@@ -179,7 +202,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a0a10', paddingHorizontal: 12, paddingVertical: 6,
     borderRadius: 20, borderWidth: 1, borderColor: COLORS.accent,
   },
-  roleText: { fontSize: 11, color: COLORS.accent, fontWeight: '700', textTransform: 'uppercase' },
+  roleText: { fontSize: 11, color: COLORS.accent, fontWeight: '700' },
   content: { padding: 20 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 20 },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 12, marginTop: 8 },
