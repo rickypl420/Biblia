@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { router } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { ServerReconnect } from '../components/ServerReconnect';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const unstable_settings = {
   initialRouteName: 'LoginScreen',

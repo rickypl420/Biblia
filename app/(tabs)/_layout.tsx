@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useWindowDimensions, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppAlert } from '../../components/AppAlert';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const COLORS = {
   accent: '#E94560', secondary: '#16213E', surface: '#0F3460',
@@ -95,6 +96,8 @@ function Sidebar() {
 export default function TabLayout() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
+  const insets = useSafeAreaInsets();
+
 
   return (
     <View style={styles.rootContainer}>
@@ -109,12 +112,12 @@ export default function TabLayout() {
             tabBarActiveTintColor: COLORS.accent,
             tabBarInactiveTintColor: COLORS.muted,
             tabBarStyle: isDesktop ? { display: 'none' } : {
-              backgroundColor: COLORS.secondary,
-              borderTopColor: COLORS.surface,
-              borderTopWidth: 1,
-              paddingBottom: 5,
-              height: 60,
-            },
+  backgroundColor: COLORS.secondary,
+  borderTopColor: COLORS.surface,
+  borderTopWidth: 1,
+  paddingBottom: insets.bottom || 5,
+  height: 60 + (insets.bottom || 0),
+},
             tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
             headerShown: false,
           })}
