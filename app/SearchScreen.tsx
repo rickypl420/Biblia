@@ -223,7 +223,7 @@ export default function SearchScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.card}
-              onPress={() => router.push({ pathname: '/BookDetail', params: { id: item.id } } as any)}
+              onPress={() => router.push({ pathname: '/BookDetail', params: { bookId: item.id } } as any)}
             >
               <View style={styles.cardIcon}>
                 <Ionicons name="book" size={22} color={COLORS.accent} />

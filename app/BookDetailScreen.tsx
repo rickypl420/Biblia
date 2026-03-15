@@ -25,7 +25,7 @@ function InfoRow({ icon, label, value }: any) {
 }
 
 function EgzemplarzCard({ egz }: any) {
-  const isAvailable = egz.status === 'dostepna';
+  const isAvailable = egz.status === 'dostepny';
   return (
     <View style={[styles.egzCard, { borderLeftColor: isAvailable ? COLORS.success : COLORS.accent }]}>
       <View style={styles.egzLeft}>
@@ -49,7 +49,8 @@ function EgzemplarzCard({ egz }: any) {
 }
 
 export default function BookDetailScreen() {
-  const { bookId } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const bookId = params.bookId ?? params['id'];
   const { userProfile } = useAuth();
   const [book, setBook] = useState<any>(null);
   const [egzemplarze, setEgzemplarze] = useState<any[]>([]);
@@ -61,8 +62,9 @@ export default function BookDetailScreen() {
 
   useEffect(() => { loadBook(); }, [bookId]);
 
-  const loadBook = async () => {
-    setLoading(true);
+const loadBook = async () => {
+  console.log('bookId:', bookId);  // ← dodaj tę linię
+  setLoading(true);
     try {
       const { data } = await supabase
         .from('ksiazki')
@@ -77,9 +79,10 @@ export default function BookDetailScreen() {
 
       if (data) {
         setBook(data);
-        const latestPrice = data.ksiazki_ceny
-          ?.sort((a: any, b: any) => new Date(b.data_obowiazywania).getTime() - new Date(a.data_obowiazywania).getTime())
-          ?.[0]?.ceny?.kwota;
+        const pricesArr = data.ksiazki_ceny as any[];
+        const latestPrice = pricesArr
+        ?.sort((a: any, b: any) => new Date(b.data_obowiazywania).getTime() - new Date(a.data_obowiazywania).getTime())
+        ?.[0]?.ceny?.kwota;
         if (latestPrice) setCena(latestPrice);
       }
 
@@ -99,7 +102,7 @@ export default function BookDetailScreen() {
       Alert.alert('Błąd', 'Musisz być zalogowany aby wypożyczyć książkę');
       return;
     }
-    const available = egzemplarze.find((e) => e.status === 'dostepna');
+    const available = egzemplarze.find((e) => e.status === 'dostepny');
     if (!available) {
       Alert.alert('Brak dostępnych egzemplarzy', 'Wszystkie egzemplarze tej książki są aktualnie wypożyczone.');
       return;
@@ -111,7 +114,7 @@ export default function BookDetailScreen() {
     setShowModal(false);
     setBorrowing(true);
     try {
-      const available = egzemplarze.find((e) => e.status === 'dostepna');
+      const available = egzemplarze.find((e) => e.status === 'dostepny');
       if (!available) return;
 
       const now = new Date();
@@ -171,7 +174,7 @@ export default function BookDetailScreen() {
     );
   }
 
-  const availableCount = egzemplarze.filter((e) => e.status === 'dostepna').length;
+  const availableCount = egzemplarze.filter((e) => e.status === 'dostepny').length;
   const authors = book.ksiazki_autorzy?.map((ka: any) => ka.autorzy?.imie_nazwisko).filter(Boolean);
   const categories = book.ksiazki_kategorie?.map((kk: any) => kk.kategorie?.nazwa).filter(Boolean);
 

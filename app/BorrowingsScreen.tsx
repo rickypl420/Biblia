@@ -136,11 +136,11 @@ const handleReturn = async (item: any) => {
   window.alert('✅ Zwrócono pomyślnie!');
 };
 
-  const handlePress = (item: any) => {
-    if (item.egzemplarze?.ksiazki?.id) {
-      router.push({ pathname: '/BookDetail', params: { bookId: item.egzemplarze.ksiazki.id } });
-    }
-  };
+ const handlePress = (item: any) => {
+  if (item.egzemplarze?.ksiazki?.id) {
+    router.push({ pathname: '/BookDetail', params: { id: item.egzemplarze.ksiazki.id } });
+  }
+};
 
   if (loading) {
     return (

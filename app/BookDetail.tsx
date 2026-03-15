@@ -1,1 +1,2 @@
-export { default } from './BookDetailScreen';
+import BookDetailScreen from './BookDetailScreen';
+export default BookDetailScreen;
