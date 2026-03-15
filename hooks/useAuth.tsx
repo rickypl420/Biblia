@@ -92,17 +92,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error };
   };
 
-  const signUp = async (email: string, password: string, imieNazwisko: string) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (!error && data.user) {
-      await supabase.from('uzytkownicy').insert({
-        email,
-        imie_nazwisko: imieNazwisko,
-        rola: 'czytelnik',
-      });
-    }
-    return { error };
-  };
+const signUp = async (email: string, password: string, imieNazwisko: string) => {
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (!error && data.user) {
+    await supabase.from('uzytkownicy').insert({
+      email,
+      imie_nazwisko: imieNazwisko,
+      rola: 'czytelnik',
+    });
+    // Zaloguj od razu po rejestracji
+    await supabase.auth.signInWithPassword({ email, password });
+  }
+  return { error };
+};
 
   const signOut = async () => {
     await supabase.auth.signOut();
